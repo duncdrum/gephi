@@ -50,13 +50,14 @@ import org.gephi.datalab.spi.ManipulatorUI;
 import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Graph;
 import org.gephi.graph.api.GraphController;
+import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
 import org.openide.util.Lookup;
 
 /**
  * UI for AddEdgeToGraph GeneralActionsManipulator
  *
- * @author Eduardo Ramos <eduramiba@gmail.com>
+ * @author Eduardo Ramos
  */
 public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorUI {
 
@@ -72,6 +73,7 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
         initComponents();
     }
 
+    @Override
     public void setup(Manipulator m, DialogControls dialogControls) {
         this.manipulator = (AddEdgeToGraph) m;
         this.dialogControls = dialogControls;
@@ -80,68 +82,88 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
         } else {
             undirectedRadioButton.setSelected(true);
         }
-        
-        graph = Lookup.getDefault().lookup(GraphController.class).getModel().getMixedGraph();
+
+        graph = Lookup.getDefault().lookup(GraphController.class).getGraphModel().getGraph();
         nodes = graph.getNodes().toArray();
-        
+
         for (Node n : nodes) {
-            sourceNodesComboBox.addItem(n.getId() + " - " + n.getNodeData().getLabel());
+            sourceNodesComboBox.addItem(n.getId() + " - " + n.getLabel());
         }
-        
+
         Node selectedSource = manipulator.getSource();
-        if(selectedSource != null){
+        if (selectedSource != null) {
             for (int i = 0; i < nodes.length; i++) {
-                if(nodes[i] == selectedSource){
+                if (nodes[i] == selectedSource) {
                     sourceNodesComboBox.setSelectedIndex(i);
                 }
             }
         }
-        
+
         refreshAvailableTargetNodes();
+        refreshAvailableEdgeTypes();
     }
 
+    @Override
     public void unSetup() {
         manipulator.setDirected(directedRadioButton.isSelected());
         if (targetNodesComboBox.getSelectedIndex() != -1) {
             manipulator.setSource(nodes[sourceNodesComboBox.getSelectedIndex()]);
             manipulator.setTarget(targetNodes[targetNodesComboBox.getSelectedIndex()]);
+            String edgeType = getSelectedEdgeType();
+            manipulator.setEdgeTypeLabel(edgeType);
         }
     }
 
+    @Override
     public String getDisplayName() {
         return manipulator.getName();
     }
 
+    @Override
     public JPanel getSettingsPanel() {
         return this;
     }
 
+    @Override
     public boolean isModal() {
         return true;
     }
+    
+    private String getSelectedEdgeType(){
+        String edgeType = edgeTypeComboBox.getSelectedItem() != null ? edgeTypeComboBox.getSelectedItem().toString() : null;
+        if(edgeType != null && edgeType.trim().isEmpty()){
+            edgeType = null;
+        }
+        
+        return edgeType;
+    }
 
-    private boolean canCreateEdge(Graph graph, Node source, Node target, boolean createUndirected) {
-        Edge existingEdge = graph.getEdge(source, target);
-
-        if (existingEdge == null) {
-            return true;
+    private boolean canCreateEdge(Graph graph, Node source, Node target, boolean undirected, String edgeType) {
+        GraphModel model = graph.getModel();
+        int type = model.getEdgeType(edgeType);
+        if (type == -1) {
+            return true;//New type
         }
 
-        if (existingEdge.getSource() == source) {//Exact edge found
-            return false;
-        } else {//Inverse edge found
-            return !createUndirected && existingEdge.isDirected();
+        Edge existingEdge = graph.getEdge(source, target, type);
+
+        if (existingEdge == null && undirected) {
+            existingEdge = graph.getEdge(target, source, type);
         }
+
+        return existingEdge == null;//Edge in that direction not found. An edge in the opposite direction is allowed.
     }
 
     private void refreshAvailableTargetNodes() {
         if (nodes != null) {
             ArrayList<Node> availableTargetNodes = new ArrayList<Node>();
             Node sourceNode = nodes[sourceNodesComboBox.getSelectedIndex()];
-            boolean createUndirected = undirectedRadioButton.isSelected();
-            for (Node n : nodes) {
-                if (canCreateEdge(graph, sourceNode, n, createUndirected)) {
-                    availableTargetNodes.add(n);
+
+            boolean undirected = undirectedRadioButton.isSelected();
+            String edgeType = getSelectedEdgeType();
+            for (Node targetNode : nodes) {
+                if (canCreateEdge(graph, sourceNode, targetNode, undirected, edgeType)) {
+                    availableTargetNodes.add(targetNode);
                 }
             }
 
@@ -149,8 +171,14 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
             dialogControls.setOkButtonEnabled(!availableTargetNodes.isEmpty());
             targetNodesComboBox.removeAllItems();
             for (Node n : targetNodes) {
-                targetNodesComboBox.addItem(n.getId() + " - " + n.getNodeData().getLabel());
+                targetNodesComboBox.addItem(n.getId() + " - " + n.getLabel());
             }
+        }
+    }
+
+    private void refreshAvailableEdgeTypes() {
+        for (Object edgeType : graph.getModel().getEdgeTypeLabels()) {
+            edgeTypeComboBox.addItem(edgeType);
         }
     }
 
@@ -169,10 +197,13 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
         sourceNodeLabel = new javax.swing.JLabel();
         targetNodeLabel = new javax.swing.JLabel();
         targetNodesComboBox = new javax.swing.JComboBox();
+        edgeTypeLabel = new javax.swing.JLabel();
+        edgeTypeComboBox = new javax.swing.JComboBox();
 
         directedUndirectedRadioButtonGroup.add(directedRadioButton);
         directedRadioButton.setText(org.openide.util.NbBundle.getMessage(AddEdgeToGraphUI.class, "AddEdgeToGraphUI.directedRadioButton.text")); // NOI18N
         directedRadioButton.addItemListener(new java.awt.event.ItemListener() {
+            @Override
             public void itemStateChanged(java.awt.event.ItemEvent evt) {
                 directedRadioButtonItemStateChanged(evt);
             }
@@ -181,6 +212,7 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
         directedUndirectedRadioButtonGroup.add(undirectedRadioButton);
         undirectedRadioButton.setText(org.openide.util.NbBundle.getMessage(AddEdgeToGraphUI.class, "AddEdgeToGraphUI.undirectedRadioButton.text")); // NOI18N
         undirectedRadioButton.addItemListener(new java.awt.event.ItemListener() {
+            @Override
             public void itemStateChanged(java.awt.event.ItemEvent evt) {
                 undirectedRadioButtonItemStateChanged(evt);
             }
@@ -189,6 +221,7 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
         descriptionLabel.setText(org.openide.util.NbBundle.getMessage(AddEdgeToGraphUI.class, "AddEdgeToGraphUI.descriptionLabel.text")); // NOI18N
 
         sourceNodesComboBox.addItemListener(new java.awt.event.ItemListener() {
+            @Override
             public void itemStateChanged(java.awt.event.ItemEvent evt) {
                 sourceNodesComboBoxItemStateChanged(evt);
             }
@@ -197,6 +230,16 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
         sourceNodeLabel.setText(org.openide.util.NbBundle.getMessage(AddEdgeToGraphUI.class, "AddEdgeToGraphUI.sourceNodeLabel.text")); // NOI18N
 
         targetNodeLabel.setText(org.openide.util.NbBundle.getMessage(AddEdgeToGraphUI.class, "AddEdgeToGraphUI.targetNodeLabel.text")); // NOI18N
+
+        edgeTypeLabel.setText(org.openide.util.NbBundle.getMessage(AddEdgeToGraphUI.class, "AddEdgeToGraphUI.edgeTypeLabel.text")); // NOI18N
+
+        edgeTypeComboBox.setEditable(true);
+        edgeTypeComboBox.addActionListener(new java.awt.event.ActionListener() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                edgeTypeComboBoxActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
         this.setLayout(layout);
@@ -217,7 +260,11 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
                     .addGroup(layout.createSequentialGroup()
                         .addComponent(targetNodeLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 73, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(targetNodesComboBox, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                        .addComponent(targetNodesComboBox, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(edgeTypeLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 73, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(edgeTypeComboBox, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         layout.setVerticalGroup(
@@ -225,7 +272,7 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                 .addContainerGap()
                 .addComponent(descriptionLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(directedRadioButton)
                     .addComponent(undirectedRadioButton))
@@ -237,7 +284,11 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(targetNodesComboBox, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(targetNodeLabel))
-                .addContainerGap())
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(edgeTypeLabel)
+                    .addComponent(edgeTypeComboBox, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
     }// </editor-fold>//GEN-END:initComponents
 
@@ -252,10 +303,17 @@ public class AddEdgeToGraphUI extends javax.swing.JPanel implements ManipulatorU
     private void undirectedRadioButtonItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_undirectedRadioButtonItemStateChanged
         refreshAvailableTargetNodes();
     }//GEN-LAST:event_undirectedRadioButtonItemStateChanged
+
+    private void edgeTypeComboBoxActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_edgeTypeComboBoxActionPerformed
+        refreshAvailableTargetNodes();
+    }//GEN-LAST:event_edgeTypeComboBoxActionPerformed
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel descriptionLabel;
     private javax.swing.JRadioButton directedRadioButton;
     private javax.swing.ButtonGroup directedUndirectedRadioButtonGroup;
+    private javax.swing.JComboBox edgeTypeComboBox;
+    private javax.swing.JLabel edgeTypeLabel;
     private javax.swing.JLabel sourceNodeLabel;
     private javax.swing.JComboBox sourceNodesComboBox;
     private javax.swing.JLabel targetNodeLabel;

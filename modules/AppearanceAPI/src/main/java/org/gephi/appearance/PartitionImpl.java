@@ -42,41 +42,26 @@
 package org.gephi.appearance;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.gephi.appearance.api.Partition;
-import org.gephi.attribute.api.Column;
-import org.gephi.attribute.api.Index;
 
 /**
  *
  * @author mbastian
  */
-public class PartitionImpl implements Partition {
+public abstract class PartitionImpl implements Partition {
 
-    private final Index index;
-    private final Column column;
-    private final Map<Object, Color> colorMap;
+    protected final Map<Object, Color> colorMap;
 
-    public PartitionImpl(Column column, Index index) {
-        this.column = column;
-        this.index = index;
+    protected PartitionImpl() {
         this.colorMap = new HashMap<Object, Color>();
-    }
-
-    @Override
-    public Iterable getValues() {
-        return index.values(column);
-    }
-
-    @Override
-    public int getElementCount() {
-        return index.countElements(column);
-    }
-
-    @Override
-    public int count(Object value) {
-        return index.count(column, value);
     }
 
     @Override
@@ -89,41 +74,19 @@ public class PartitionImpl implements Partition {
         colorMap.put(value, color);
     }
 
-    @Override
-    public float percentage(Object value) {
-        int count = index.count(column, value);
-        return (float) count / index.countElements(column);
-    }
+    protected abstract void refresh();
 
     @Override
-    public int size() {
-        return index.countValues(column);
-    }
-
-    @Override
-    public Column getColumn() {
-        return column;
-    }
-
-    @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 23 * hash + (this.column != null ? this.column.hashCode() : 0);
-        return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final PartitionImpl other = (PartitionImpl) obj;
-        if (this.column != other.column && (this.column == null || !this.column.equals(other.column))) {
-            return false;
-        }
-        return true;
+    public Collection getSortedValues() {
+        List values = new ArrayList(getValues());
+        Collections.sort(values, new Comparator() {
+            @Override
+            public int compare(Object o1, Object o2) {
+                float p1 = percentage(o1);
+                float p2 = percentage(o2);
+                return p1 > p2 ? -1 : p1 < p2 ? 1 : 0;
+            }
+        });
+        return values;
     }
 }

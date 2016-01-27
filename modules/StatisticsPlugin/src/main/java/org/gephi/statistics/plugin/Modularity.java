@@ -44,9 +44,9 @@ package org.gephi.statistics.plugin;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
-import org.gephi.attribute.api.AttributeModel;
-import org.gephi.attribute.api.Column;
-import org.gephi.attribute.api.Table;
+import org.gephi.graph.api.Column;
+import org.gephi.graph.api.Edge;
+import org.gephi.graph.api.Table;
 import org.gephi.graph.api.Graph;
 import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
@@ -171,14 +171,16 @@ public class Modularity implements Statistics, LongTask {
                 int node_index = map.get(node);
                 topology[node_index] = new LinkedList<ModEdge>();
 
-                for (Node neighbor : hgraph.getNeighbors(node)) {
+                for (Edge edge : hgraph.getEdges(node)) {
+                    Node neighbor = hgraph.getOpposite(node, edge);
+
                     if (node == neighbor) {
                         continue;
                     }
                     int neighbor_index = map.get(neighbor);
                     float weight = 1;
                     if (useWeight) {
-                        weight = (float) hgraph.getEdge(node, neighbor).getWeight();
+                        weight = (float) edge.getWeight(graph.getView());
                     }
 
                     weights[node_index] += weight;
@@ -449,12 +451,12 @@ public class Modularity implements Statistics, LongTask {
     }
 
     @Override
-    public void execute(GraphModel graphModel, AttributeModel attributeModel) {
+    public void execute(GraphModel graphModel) {
         Graph hgraph = graphModel.getUndirectedGraphVisible();
-        execute(hgraph, attributeModel);
+        execute(hgraph);
     }
 
-    public void execute(Graph hgraph, AttributeModel attributeModel) {
+    public void execute(Graph hgraph) {
         isCanceled = false;
 
         hgraph.readLock();
@@ -467,7 +469,7 @@ public class Modularity implements Statistics, LongTask {
         modularity = computedModularityMetrics.get("modularity");
         modularityResolution = computedModularityMetrics.get("modularityResolution");
 
-        saveValues(comStructure, hgraph, attributeModel, structure);
+        saveValues(comStructure, hgraph, structure);
 
         hgraph.readUnlock();
     }
@@ -586,14 +588,15 @@ public class Modularity implements Statistics, LongTask {
         double[] internal = new double[degrees.length];
         for (Node n : hgraph.getNodes()) {
             int n_index = theStructure.map.get(n);
-            for (Node neighbor : hgraph.getNeighbors(n)) {
+            for (Edge edge : hgraph.getEdges(n)) {
+                Node neighbor = hgraph.getOpposite(n, edge);
                 if (n == neighbor) {
                     continue;
                 }
                 int neigh_index = theStructure.map.get(neighbor);
                 if (struct[neigh_index] == struct[n_index]) {
                     if (weighted) {
-                        internal[struct[neigh_index]] += hgraph.getEdge(n, neighbor).getWeight();
+                        internal[struct[neigh_index]] += edge.getWeight(hgraph.getView());
                     } else {
                         internal[struct[neigh_index]]++;
                     }
@@ -607,14 +610,14 @@ public class Modularity implements Statistics, LongTask {
         return res;
     }
 
-    private void saveValues(int[] struct, Graph hgraph, AttributeModel attributeModel, CommunityStructure theStructure) {
-        Table nodeTable = attributeModel.getNodeTable();
+    private void saveValues(int[] struct, Graph hgraph, CommunityStructure theStructure) {
+        Table nodeTable = hgraph.getModel().getNodeTable();
         Column modCol = nodeTable.getColumn(MODULARITY_CLASS);
         if (modCol == null) {
             modCol = nodeTable.addColumn(MODULARITY_CLASS, "Modularity Class", Integer.class, new Integer(0));
         }
         for (Node n : hgraph.getNodes()) {
-            int n_index = theStructure.map.get(n);;
+            int n_index = theStructure.map.get(n);
             n.setAttribute(modCol, struct[n_index]);
         }
     }

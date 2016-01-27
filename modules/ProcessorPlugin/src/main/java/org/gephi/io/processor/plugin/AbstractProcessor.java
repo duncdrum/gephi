@@ -42,108 +42,168 @@
 package org.gephi.io.processor.plugin;
 
 import java.awt.Color;
-import org.gephi.attribute.api.AttributeModel;
-import org.gephi.attribute.api.AttributeUtils;
-import org.gephi.attribute.api.Origin;
-import org.gephi.attribute.api.Table;
+import org.gephi.graph.api.AttributeUtils;
+import org.gephi.graph.api.Origin;
+import org.gephi.graph.api.Table;
 import org.gephi.graph.api.Edge;
+import org.gephi.graph.api.Element;
+import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
+import org.gephi.graph.api.TimeRepresentation;
+import org.gephi.graph.api.types.IntervalDoubleMap;
+import org.gephi.graph.api.types.TimeMap;
+import org.gephi.graph.api.types.TimeSet;
+import org.gephi.graph.api.types.TimestampDoubleMap;
+import org.gephi.graph.api.types.TimestampMap;
 import org.gephi.io.importer.api.ColumnDraft;
 import org.gephi.io.importer.api.ContainerUnloader;
 import org.gephi.io.importer.api.EdgeDraft;
+import org.gephi.io.importer.api.ElementDraft;
 import org.gephi.io.importer.api.NodeDraft;
 import org.gephi.project.api.Workspace;
+import org.gephi.utils.progress.ProgressTicket;
 
-/**
- *
- * @author Mathieu Bastian
- */
 public abstract class AbstractProcessor {
-
+    
+    protected ProgressTicket progressTicket;
     protected Workspace workspace;
-    protected ContainerUnloader container;
-    protected AttributeModel attributeModel;
-
-    protected void flushColumns() {
-        Table nodeTable = attributeModel.getNodeTable();
+    protected ContainerUnloader[] containers;
+    protected GraphModel graphModel;
+    
+    protected void flushColumns(ContainerUnloader container) {
+        TimeRepresentation timeRepresentation = container.getTimeRepresentation();
+        Table nodeTable = graphModel.getNodeTable();
         for (ColumnDraft col : container.getNodeColumns()) {
             if (!nodeTable.hasColumn(col.getId())) {
                 Class typeClass = col.getTypeClass();
                 if (col.isDynamic()) {
-                    typeClass = AttributeUtils.getDynamicType(typeClass);
+                    if (timeRepresentation.equals(TimeRepresentation.TIMESTAMP)) {
+                        typeClass = AttributeUtils.getTimestampMapType(typeClass);
+                    } else {
+                        typeClass = AttributeUtils.getIntervalMapType(typeClass);
+                    }
                 }
-                nodeTable.addColumn(col.getId(), col.getTitle(), typeClass, Origin.DATA, col.getDefaultValue(), true);
+                nodeTable.addColumn(col.getId(), col.getTitle(), typeClass, Origin.DATA, col.getDefaultValue(), !col.isDynamic());
             }
         }
-        Table edgeTable = attributeModel.getEdgeTable();
+        Table edgeTable = graphModel.getEdgeTable();
         for (ColumnDraft col : container.getEdgeColumns()) {
             if (!edgeTable.hasColumn(col.getId())) {
                 Class typeClass = col.getTypeClass();
                 if (col.isDynamic()) {
-                    typeClass = AttributeUtils.getDynamicType(typeClass);
+                    if (timeRepresentation.equals(TimeRepresentation.TIMESTAMP)) {
+                        typeClass = AttributeUtils.getTimestampMapType(typeClass);
+                    } else {
+                        typeClass = AttributeUtils.getIntervalMapType(typeClass);
+                    }
                 }
-                edgeTable.addColumn(col.getId(), col.getTitle(), typeClass, Origin.DATA, col.getDefaultValue(), true);
+                edgeTable.addColumn(col.getId(), col.getTitle(), typeClass, Origin.DATA, col.getDefaultValue(), !col.isDynamic());
             }
         }
     }
-
+    
     protected void flushToNode(NodeDraft nodeDraft, Node node) {
         if (nodeDraft.getColor() != null) {
             node.setColor(nodeDraft.getColor());
         }
-
+        
         if (nodeDraft.getLabel() != null) {
             node.setLabel(nodeDraft.getLabel());
         }
-
+        
         if (node.getTextProperties() != null) {
             node.getTextProperties().setVisible(nodeDraft.isLabelVisible());
         }
-
+        
         if (nodeDraft.getLabelColor() != null && node.getTextProperties() != null) {
             Color labelColor = nodeDraft.getLabelColor();
             node.getTextProperties().setColor(labelColor);
+        } else {
+            node.getTextProperties().setColor(new Color(0, 0, 0, 0));
         }
-
+        
         if (nodeDraft.getLabelSize() != -1f && node.getTextProperties() != null) {
             node.getTextProperties().setSize(nodeDraft.getLabelSize());
         }
-
-        node.setX(nodeDraft.getX());
-        node.setY(nodeDraft.getY());
-        node.setZ(nodeDraft.getZ());
-
+        
+        if ((nodeDraft.getX() != 0 || nodeDraft.getY() != 0 || nodeDraft.getZ() != 0)
+                && (node.x() == 0 && node.y() == 0 && node.z() == 0)) {
+            node.setX(nodeDraft.getX());
+            node.setY(nodeDraft.getY());
+            node.setZ(nodeDraft.getZ());
+        }
+        
         if (nodeDraft.getSize() != 0 && !Float.isNaN(nodeDraft.getSize())) {
             node.setSize(nodeDraft.getSize());
-        } else {
+        } else if (node.size() == 0) {
             node.setSize(10f);
         }
 
-        //Attributes
-        flushToNodeAttributes(nodeDraft, node);
-    }
+        //Timeset
+        if (nodeDraft.getTimeSet() != null) {
+            flushTimeSet(nodeDraft.getTimeSet(), node);
+        }
 
-    protected void flushToNodeAttributes(NodeDraft nodeDraft, Node node) {
-        for (ColumnDraft col : container.getNodeColumns()) {
-            if (col.isDynamic()) {
-                double[] timestamps = nodeDraft.getTimestamps(col.getId());
-                if (timestamps != null) {
-                    for (double d : timestamps) {
-                        Object val = nodeDraft.getValue(col.getId(), d);
-                        if (val != null) {
-                            node.setAttribute(col.getId(), val, d);
-                        }
-                    }
+        //Graph timeset
+        if (nodeDraft.getGraphTimestamp() != null) {
+            node.addTimestamp(nodeDraft.getGraphTimestamp());
+        } else if (nodeDraft.getGraphInterval() != null) {
+            node.addInterval(nodeDraft.getGraphInterval());
+        }
+
+        //Attributes
+        flushToElementAttributes(nodeDraft, node);
+    }
+    
+    protected void flushEdgeWeight(EdgeDraft edgeDraft, Edge edge) {
+        Object val = edgeDraft.getValue("weight");
+        if (val != null && val instanceof TimeMap) {
+            TimeMap existingMap = (TimeMap) edge.getAttribute("weight");
+            if (existingMap == null) {
+                if (val instanceof TimestampMap) {
+                    existingMap = new TimestampDoubleMap();
+                } else {
+                    existingMap = new IntervalDoubleMap();
                 }
-            } else {
-                Object val = nodeDraft.getValue(col.getId());
-                if (val != null) {
-                    node.setAttribute(col.getId(), val);
+                edge.setAttribute("weight", existingMap);
+            }
+            
+            Object[] keys = ((TimeMap) val).toKeysArray();
+            Object[] vals = ((TimeMap) val).toValuesArray();
+            
+            for (int i = 0; i < keys.length; i++) {
+                existingMap.put(keys[i], ((Number) vals[i]).doubleValue());
+            }
+        }
+    }
+    
+    protected void flushToElementAttributes(ElementDraft elementDraft, Element element) {
+        for (ColumnDraft col : elementDraft.getColumns()) {
+            if (elementDraft instanceof EdgeDraft && col.getId().equals("weight")) {
+                continue;
+            }
+            Object val = elementDraft.getValue(col.getId());
+            if (val != null) {
+                TimeMap existingMap;
+                if (col.isDynamic() && (existingMap = (TimeMap) element.getAttribute(col.getId())) != null && !existingMap.isEmpty()) {
+                    Object[] keys = ((TimeMap) val).toKeysArray();
+                    Object[] vals = ((TimeMap) val).toValuesArray();
+                    for (int i = 0; i < keys.length; i++) {
+                        existingMap.put(keys[i], vals[i]);
+                    }
+                } else if (col.isDynamic() && (elementDraft.getGraphInterval() != null || elementDraft.getGraphTimestamp() != null)) {
+                    if (elementDraft.getGraphTimestamp() != null) {
+                        element.setAttribute(col.getId(), val, elementDraft.getGraphTimestamp());
+                    } else if (elementDraft.getGraphInterval() != null) {
+                        element.setAttribute(col.getId(), val, elementDraft.getGraphInterval());
+                    }
+                } else {
+                    element.setAttribute(col.getId(), val);
                 }
             }
         }
     }
-
+    
     protected void flushToEdge(EdgeDraft edgeDraft, Edge edge) {
         if (edgeDraft.getColor() != null) {
             edge.setColor(edgeDraft.getColor());
@@ -153,54 +213,65 @@ public abstract class AbstractProcessor {
             edge.setB(0f);
             edge.setAlpha(0f);
         }
-
+        
         if (edgeDraft.getLabel() != null) {
             edge.setLabel(edgeDraft.getLabel());
         }
-
+        
         if (edge.getTextProperties() != null) {
             edge.getTextProperties().setVisible(edgeDraft.isLabelVisible());
         }
-
+        
         if (edgeDraft.getLabelSize() != -1f && edge.getTextProperties() != null) {
             edge.getTextProperties().setSize(edgeDraft.getLabelSize());
         }
-
+        
         if (edgeDraft.getLabelColor() != null && edge.getTextProperties() != null) {
             Color labelColor = edgeDraft.getLabelColor();
             edge.getTextProperties().setColor(labelColor);
+        } else {
+            edge.getTextProperties().setColor(new Color(0, 0, 0, 0));
         }
+
+        //Timeset
+        if (edgeDraft.getTimeSet() != null) {
+            flushTimeSet(edgeDraft.getTimeSet(), edge);
+        }
+
+        //Graph timeset
+        if (edgeDraft.getGraphTimestamp() != null) {
+            edge.addTimestamp(edgeDraft.getGraphTimestamp());
+        } else if (edgeDraft.getGraphInterval() != null) {
+            edge.addInterval(edgeDraft.getGraphInterval());
+        }
+
+        //Dynamic edge weight (if any)
+        flushEdgeWeight(edgeDraft, edge);
 
         //Attributes
-        flushToEdgeAttributes(edgeDraft, edge);
+        flushToElementAttributes(edgeDraft, edge);
     }
-
-    protected void flushToEdgeAttributes(EdgeDraft edgeDraft, Edge edge) {
-        for (ColumnDraft col : container.getEdgeColumns()) {
-            if (col.isDynamic()) {
-                double[] timestamps = edgeDraft.getTimestamps(col.getId());
-                if (timestamps != null) {
-                    for (double d : timestamps) {
-                        Object val = edgeDraft.getValue(col.getId(), d);
-                        if (val != null) {
-                            edge.setAttribute(col.getId(), val, d);
-                        }
-                    }
-                }
-            } else {
-                Object val = edgeDraft.getValue(col.getId());
-                if (val != null) {
-                    edge.setAttribute(col.getId(), val);
-                }
+    
+    protected void flushTimeSet(TimeSet timeSet, Element element) {
+        TimeSet existingTimeSet = (TimeSet) element.getAttribute("timeset");
+        if (existingTimeSet != null && !existingTimeSet.isEmpty()) {
+            for (Object o : timeSet.toArray()) {
+                existingTimeSet.add(o);
             }
+        } else {
+            element.setAttribute("timeset", timeSet);
         }
     }
-
+    
     public void setWorkspace(Workspace workspace) {
         this.workspace = workspace;
     }
-
-    public void setContainer(ContainerUnloader container) {
-        this.container = container;
+    
+    public void setContainers(ContainerUnloader[] containers) {
+        this.containers = containers;
+    }
+    
+    public void setProgressTicket(ProgressTicket progressTicket) {
+        this.progressTicket = progressTicket;
     }
 }

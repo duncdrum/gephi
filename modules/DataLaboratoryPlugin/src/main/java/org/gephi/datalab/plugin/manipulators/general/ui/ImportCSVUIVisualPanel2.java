@@ -47,15 +47,18 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.List;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
-import org.gephi.data.attributes.api.AttributeController;
-import org.gephi.data.attributes.api.AttributeTable;
-import org.gephi.data.attributes.api.AttributeType;
+import org.gephi.graph.api.Table;
 import org.gephi.datalab.plugin.manipulators.general.ui.ImportCSVUIWizardAction.Mode;
+import org.gephi.datalab.utils.SupportedColumnTypeWrapper;
+import org.gephi.graph.api.Column;
+import org.gephi.graph.api.GraphController;
+import org.gephi.graph.api.GraphModel;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
@@ -69,9 +72,10 @@ public final class ImportCSVUIVisualPanel2 extends JPanel {
     private Character separator;
     private File file;
     private ImportCSVUIWizardAction.Mode mode;
-    private ArrayList<JCheckBox> columnsCheckBoxes=new ArrayList<JCheckBox>();
-    private ArrayList<JComboBox> columnsComboBoxes=new ArrayList<JComboBox>();
-    private AttributeTable table;
+    private final ArrayList<JCheckBox> columnsCheckBoxes = new ArrayList<JCheckBox>();
+    private final ArrayList<JComboBox> columnsComboBoxes = new ArrayList<JComboBox>();
+    private GraphModel graphModel;
+    private Table table;
     private Charset charset;
     //Nodes table settings:
     private JCheckBox assignNewNodeIds;
@@ -100,14 +104,15 @@ public final class ImportCSVUIVisualPanel2 extends JPanel {
             JPanel settingsPanel = new JPanel();
             settingsPanel.setLayout(new MigLayout());
             loadDescription(settingsPanel);
+            graphModel = Lookup.getDefault().lookup(GraphController.class).getGraphModel();
             switch (mode) {
                 case NODES_TABLE:
-                    table = Lookup.getDefault().lookup(AttributeController.class).getModel().getNodeTable();
+                    table = graphModel.getNodeTable();
                     loadColumns(settingsPanel);
                     loadNodesTableSettings(settingsPanel);
                     break;
                 case EDGES_TABLE:
-                    table = Lookup.getDefault().lookup(AttributeController.class).getModel().getEdgeTable();
+                    table = graphModel.getEdgeTable();
                     loadColumns(settingsPanel);
                     loadEdgesTableSettings(settingsPanel);
                     break;
@@ -150,7 +155,12 @@ public final class ImportCSVUIVisualPanel2 extends JPanel {
                     continue;//Remove empty column headers:
                 }
                 
-                JCheckBox columnCheckBox= new JCheckBox(columns[i], true);
+                JCheckBox columnCheckBox = new JCheckBox(columns[i], true);
+                Column column = table.getColumn(columns[i]);
+                if(column != null){
+                    columnCheckBox.setToolTipText(column.getTitle());
+                }
+                
                 columnsCheckBoxes.add(columnCheckBox);
                 settingsPanel.add(columnCheckBox, "wrap");
                 JComboBox columnComboBox = new JComboBox();
@@ -183,29 +193,34 @@ public final class ImportCSVUIVisualPanel2 extends JPanel {
 
     private void fillComboBoxWithColumnTypes(String column, JComboBox comboBox) {
         comboBox.removeAllItems();
-        for (AttributeType type : AttributeType.values()) {
-            comboBox.addItem(type);
+        List<SupportedColumnTypeWrapper> supportedTypesWrappers = SupportedColumnTypeWrapper.buildOrderedSupportedTypesList(graphModel);
+
+        for (SupportedColumnTypeWrapper supportedColumnTypeWrapper : supportedTypesWrappers) {
+            comboBox.addItem(supportedColumnTypeWrapper);
         }
+        
         if (table.hasColumn(column)) {
             //Set type of the already existing column in the table and disable the edition:
-            comboBox.setSelectedItem(table.getColumn(column).getType());
+            comboBox.setSelectedItem(new SupportedColumnTypeWrapper(table.getColumn(column).getTypeClass()));
             comboBox.setEnabled(false);
         } else {
-            comboBox.setSelectedItem(AttributeType.STRING);//Set STRING by default
+            comboBox.setSelectedItem(new SupportedColumnTypeWrapper(String.class));//Set STRING by default
         }
     }
 
     private void loadNodesTableSettings(JPanel settingsPanel) {
         //Create assignNewNodeIds checkbox and set its selection with saved preferences or true by default:
         assignNewNodeIds = new JCheckBox(getMessage("ImportCSVUIVisualPanel2.nodes.assign-ids-checkbox"),
-                NbPreferences.forModule(ImportCSVUIVisualPanel1.class).getBoolean(ASSIGN_NEW_NODES_IDS_SAVED_PREFERENCES, true));
+                NbPreferences.forModule(ImportCSVUIVisualPanel1.class)
+                        .getBoolean(ASSIGN_NEW_NODES_IDS_SAVED_PREFERENCES, false));//False => by default update nodes instead of creating new ones
         settingsPanel.add(assignNewNodeIds, "wrap");
     }
 
     private void loadEdgesTableSettings(JPanel settingsPanel) {
         //Create createNewNodes checkbox and set its selection with saved preferences or true by default:
         createNewNodes = new JCheckBox(getMessage("ImportCSVUIVisualPanel2.edges.create-new-nodes-checkbox"),
-                NbPreferences.forModule(ImportCSVUIVisualPanel1.class).getBoolean(CREATE_NEW_NODES_SAVED_PREFERENCES, true));
+                NbPreferences.forModule(ImportCSVUIVisualPanel1.class)
+                        .getBoolean(CREATE_NEW_NODES_SAVED_PREFERENCES, true));//True => by default create missing nodes
         settingsPanel.add(createNewNodes, "wrap");
     }
 
@@ -223,14 +238,15 @@ public final class ImportCSVUIVisualPanel2 extends JPanel {
         return columns.toArray(new String[0]);
     }
 
-    public AttributeType[] getColumnsToImportTypes() {
-        ArrayList<AttributeType> types = new ArrayList<AttributeType>();
+    public Class[] getColumnsToImportTypes() {
+        ArrayList<Class> types = new ArrayList<Class>();
         for (int i = 0; i < columnsCheckBoxes.size(); i++) {
             if (columnsCheckBoxes.get(i).isSelected()) {
-                types.add((AttributeType) columnsComboBoxes.get(i).getSelectedItem());
+                SupportedColumnTypeWrapper selected = (SupportedColumnTypeWrapper)columnsComboBoxes.get(i).getSelectedItem();
+                types.add(selected.getType());
             }
         }
-        return types.toArray(new AttributeType[0]);
+        return types.toArray(new Class[0]);
     }
 
     public boolean getAssignNewNodeIds() {

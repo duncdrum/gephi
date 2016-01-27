@@ -49,12 +49,14 @@ import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
-import org.gephi.data.attributes.api.AttributeColumn;
-import org.gephi.data.attributes.api.AttributeTable;
+import org.gephi.graph.api.Column;
+import org.gephi.graph.api.Table;
 import org.gephi.datalab.spi.DialogControls;
 import org.gephi.datalab.spi.Manipulator;
 import org.gephi.datalab.spi.ManipulatorUI;
@@ -62,8 +64,6 @@ import org.gephi.datalab.spi.columns.AttributeColumnsManipulator;
 import org.gephi.datalab.spi.columns.AttributeColumnsManipulatorUI;
 import org.gephi.datalab.spi.columns.merge.AttributeColumnsMergeStrategy;
 import org.gephi.datalab.spi.columns.merge.AttributeColumnsMergeStrategyBuilder;
-import org.gephi.datalab.spi.values.AttributeValueManipulator;
-import org.gephi.datalab.spi.values.AttributeValueManipulatorBuilder;
 import org.gephi.datalab.spi.edges.EdgesManipulator;
 import org.gephi.datalab.spi.edges.EdgesManipulatorBuilder;
 import org.gephi.datalab.spi.general.GeneralActionsManipulator;
@@ -72,6 +72,9 @@ import org.gephi.datalab.spi.nodes.NodesManipulator;
 import org.gephi.datalab.spi.nodes.NodesManipulatorBuilder;
 import org.gephi.datalab.spi.rows.merge.AttributeRowsMergeStrategy;
 import org.gephi.datalab.spi.rows.merge.AttributeRowsMergeStrategyBuilder;
+import org.gephi.datalab.spi.values.AttributeValueManipulator;
+import org.gephi.datalab.spi.values.AttributeValueManipulatorBuilder;
+import org.gephi.graph.api.GraphModel;
 import org.openide.DialogDescriptor;
 import org.openide.DialogDisplayer;
 import org.openide.util.Lookup;
@@ -197,6 +200,7 @@ public class DataLaboratoryHelper {
     private void sortManipulators(ArrayList<? extends Manipulator> m) {
         Collections.sort(m, new Comparator<Manipulator>() {
 
+            @Override
             public int compare(Manipulator o1, Manipulator o2) {
                 //Order by type, position.
                 if (o1.getType() == o2.getType()) {
@@ -211,6 +215,7 @@ public class DataLaboratoryHelper {
     private void sortAttributeColumnsManipulators(ArrayList<? extends AttributeColumnsManipulator> m) {
         Collections.sort(m, new Comparator<AttributeColumnsManipulator>() {
 
+            @Override
             public int compare(AttributeColumnsManipulator o1, AttributeColumnsManipulator o2) {
                 //Order by type, position.
                 if (o1.getType() == o2.getType()) {
@@ -231,6 +236,7 @@ public class DataLaboratoryHelper {
         if (m.canExecute()) {
             SwingUtilities.invokeLater(new Runnable() {
 
+                @Override
                 public void run() {
 
                     final ManipulatorUI ui = m.getUI();
@@ -242,6 +248,7 @@ public class DataLaboratoryHelper {
                         JPanel settingsPanel = ui.getSettingsPanel();
                         DialogDescriptor dd = new DialogDescriptor(settingsPanel, NbBundle.getMessage(DataLaboratoryHelper.class, "SettingsPanel.title", ui.getDisplayName()), ui.isModal(), new ActionListener() {
 
+                            @Override
                             public void actionPerformed(ActionEvent e) {
                                 if (e.getSource().equals(okButton)) {
                                     ui.unSetup();
@@ -287,6 +294,7 @@ public class DataLaboratoryHelper {
             JPanel settingsPanel = ui.getSettingsPanel();
             DialogDescriptor dd = new DialogDescriptor(settingsPanel, NbBundle.getMessage(DataLaboratoryHelper.class, "SettingsPanel.title", ui.getDisplayName()), ui.isModal(), new ActionListener() {
 
+                @Override
                 public void actionPerformed(ActionEvent e) {
                     if (e.getSource().equals(okButton)) {
                         ui.unSetup();
@@ -307,6 +315,13 @@ public class DataLaboratoryHelper {
 
             @Override
             public void run() {
+                this.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+
+                    @Override
+                    public void uncaughtException(Thread t, Throwable e) {
+                        Logger.getLogger("").log(Level.SEVERE, null, e);
+                    }
+                });
                 m.execute();
             }
         }.start();
@@ -316,23 +331,26 @@ public class DataLaboratoryHelper {
      * Prepares the dialog UI of a AttributeColumnsManipulator if it has one and executes the manipulator in a separate
      * Thread when the dialog is accepted or directly if there is no UI.
      * @param m AttributeColumnsManipulator
+     * @param graphModel Graph model of the table
      * @param table Table of the column
      * @param column Column to manipulate
      */
-    public void executeAttributeColumnsManipulator(final AttributeColumnsManipulator m, final AttributeTable table, final AttributeColumn column) {
+    public void executeAttributeColumnsManipulator(final AttributeColumnsManipulator m, final GraphModel graphModel, final Table table, final Column column) {
         if (m.canManipulateColumn(table, column)) {
             SwingUtilities.invokeLater(new Runnable() {
 
+                @Override
                 public void run() {
                     final AttributeColumnsManipulatorUI ui = m.getUI(table, column);
                     //Show a dialog for the manipulator UI if it provides one. If not, execute the manipulator directly:
                     if (ui != null) {
                         final JButton okButton = new JButton(NbBundle.getMessage(DataLaboratoryHelper.class, "DataLaboratoryHelper.ui.okButton.text"));
                         DialogControls dialogControls = new DialogControlsImpl(okButton);
-                        ui.setup(m, table, column, dialogControls);
+                        ui.setup(m, graphModel, table, column, dialogControls);
                         JPanel settingsPanel = ui.getSettingsPanel();
                         DialogDescriptor dd = new DialogDescriptor(settingsPanel, NbBundle.getMessage(DataLaboratoryHelper.class, "SettingsPanel.title", ui.getDisplayName()), ui.isModal(), new ActionListener() {
 
+                            @Override
                             public void actionPerformed(ActionEvent e) {
                                 if (e.getSource().equals(okButton)) {
                                     ui.unSetup();
@@ -361,7 +379,7 @@ public class DataLaboratoryHelper {
         }
     }
 
-    private void executeAttributeColumnsManipulatorInOtherThread(final AttributeColumnsManipulator m, final AttributeTable table, final AttributeColumn column) {
+    private void executeAttributeColumnsManipulatorInOtherThread(final AttributeColumnsManipulator m, final Table table, final Column column) {
         new Thread() {
 
             @Override
@@ -475,10 +493,12 @@ public class DataLaboratoryHelper {
             this.okButton = okButton;
         }
 
+        @Override
         public void setOkButtonEnabled(boolean enabled) {
             okButton.setEnabled(enabled);
         }
 
+        @Override
         public boolean isOkButtonEnabled() {
             return okButton.isEnabled();
         }

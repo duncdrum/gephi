@@ -93,8 +93,8 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
     private boolean closeProject = false;
     private boolean newWorkspace = false;
     private boolean deleteWorkspace = false;
-    private boolean cleanWorkspace = false;
     private boolean duplicateWorkspace = false;
+    private boolean renameWorkspace = false;
     //Project
     private ProjectController controller;
     //Utilities
@@ -107,6 +107,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         //Project IO executor
         longTaskExecutor = new LongTaskExecutor(true, "Project IO");
         longTaskExecutor.setDefaultErrorHandler(new LongTaskErrorHandler() {
+            @Override
             public void fatalError(Throwable t) {
                 unlockProjectActions();
 //                String txt = NbBundle.getMessage(ProjectControllerUIImpl.class, "ProjectControllerUI.error.open");
@@ -121,6 +122,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
             }
         });
         longTaskExecutor.setLongTaskListener(new LongTaskListener() {
+            @Override
             public void taskFinished(LongTask task) {
                 unlockProjectActions();
             }
@@ -133,6 +135,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         final Runnable saveTask = controller.saveProject(project, file);
         final String fileName = file.getName();
         Runnable saveRunnable = new Runnable() {
+            @Override
             public void run() {
                 saveTask.run();
                 //Status line
@@ -150,6 +153,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         mostRecentFiles.addFile(file.getAbsolutePath());
     }
 
+    @Override
     public void saveProject() {
         Project project = controller.getCurrentProject();
         if (project.getLookup().lookup(ProjectInformation.class).hasFile()) {
@@ -160,6 +164,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         }
     }
 
+    @Override
     public void saveAsProject() {
         final String LAST_PATH = "SaveAsProject_Last_Path";
         final String LAST_PATH_DEFAULT = "SaveAsProject_Last_Path_Default";
@@ -210,10 +215,11 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
 
                 //Modifying Title bar
                 SwingUtilities.invokeLater(new Runnable() {
+                    @Override
                     public void run() {
                         JFrame frame = (JFrame) WindowManager.getDefault().getMainWindow();
                         String title = frame.getTitle();
-                        title = title.substring(0, title.indexOf('-') - 1) + " - " + SaveAsFileName;
+                        title = title.substring(0, title.indexOf(" - ")) + " - " + SaveAsFileName;
                         frame.setTitle(title);
                     }
                 });
@@ -253,15 +259,16 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
             closeProject = false;
             newWorkspace = false;
             deleteWorkspace = false;
-            cleanWorkspace = false;
             duplicateWorkspace = false;
+            renameWorkspace = false;
 
             //Title bar
             SwingUtilities.invokeLater(new Runnable() {
+                @Override
                 public void run() {
                     JFrame frame = (JFrame) WindowManager.getDefault().getMainWindow();
                     String title = frame.getTitle();
-                    title = title.substring(0, title.indexOf('-') - 1);
+                    title = title.substring(0, title.indexOf(" - "));
                     frame.setTitle(title);
                 }
             });
@@ -269,6 +276,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         return true;
     }
 
+    @Override
     public void openProject(File file) {
         if (controller.getCurrentProject() != null) {
             if (!closeCurrentProject()) {
@@ -284,9 +292,11 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         final Runnable loadTask = controller.openProject(file);
         final String fileName = file.getName();
         Runnable loadRunnable = new Runnable() {
+            @Override
             public void run() {
                 loadTask.run();
                 SwingUtilities.invokeLater(new Runnable() {
+                    @Override
                     public void run() {
                         JFrame frame = (JFrame) WindowManager.getDefault().getMainWindow();
                         String title = frame.getTitle() + " - " + fileName;
@@ -308,57 +318,69 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         mostRecentFiles.addFile(file.getAbsolutePath());
     }
 
+    @Override
     public void renameProject(final String name) {
         controller.renameProject(controller.getCurrentProject(), name);
 
         //Title bar
         SwingUtilities.invokeLater(new Runnable() {
+            @Override
             public void run() {
                 JFrame frame = (JFrame) WindowManager.getDefault().getMainWindow();
                 String title = frame.getTitle();
-                title = title.substring(0, title.indexOf('-') - 1);
+                title = title.substring(0, title.indexOf(" - "));
                 title += " - " + name;
                 frame.setTitle(title);
             }
         });
     }
 
-    public boolean canCleanWorkspace() {
-        return cleanWorkspace;
-    }
-
+    @Override
     public boolean canCloseProject() {
         return closeProject;
     }
 
+    @Override
     public boolean canDeleteWorkspace() {
         return deleteWorkspace;
     }
 
+    @Override
     public boolean canNewProject() {
         return newProject;
     }
 
+    @Override
     public boolean canNewWorkspace() {
         return newWorkspace;
     }
 
+    @Override
     public boolean canDuplicateWorkspace() {
         return duplicateWorkspace;
     }
 
+    @Override
+    public boolean canRenameWorkspace() {
+        return renameWorkspace;
+    }
+
+    @Override
     public boolean canOpenFile() {
         return openFile;
     }
 
+    @Override
     public boolean canSave() {
         return saveProject;
     }
 
+    @Override
     public boolean canSaveAs() {
         return saveAsProject;
     }
 
+    @Override
     public boolean canProjectProperties() {
         return projectProperties;
     }
@@ -372,8 +394,8 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         openFile = false;
         newWorkspace = false;
         deleteWorkspace = false;
-        cleanWorkspace = false;
         duplicateWorkspace = false;
+        renameWorkspace = false;
     }
 
     private void unlockProjectActions() {
@@ -385,8 +407,8 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
             projectProperties = true;
             if (controller.getCurrentProject().getLookup().lookup(WorkspaceProvider.class).hasCurrentWorkspace()) {
                 deleteWorkspace = true;
-                cleanWorkspace = true;
                 duplicateWorkspace = true;
+                renameWorkspace = true;
             }
         }
         openProject = true;
@@ -394,6 +416,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         openFile = true;
     }
 
+    @Override
     public void projectProperties() {
         Project project = controller.getCurrentProject();
         ProjectPropertiesUI ui = Lookup.getDefault().lookup(ProjectPropertiesUI.class);
@@ -408,6 +431,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         }
     }
 
+    @Override
     public void openFile() {
         final String LAST_PATH = "OpenFile_Last_Path";
         final String LAST_PATH_DEFAULT = "OpenFile_Last_Path_Default";
@@ -418,6 +442,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
 
         //Init dialog
         final JFileChooser chooser = new JFileChooser(lastPath);
+        chooser.setMultiSelectionEnabled(true);
         DialogFileFilter gephiFilter = new DialogFileFilter(NbBundle.getMessage(ProjectControllerUIImpl.class, "OpenProject_filechooser_filter"));
         gephiFilter.addExtension(".gephi");
 
@@ -442,14 +467,31 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         int returnFile = chooser.showOpenDialog(null);
 
         if (returnFile == JFileChooser.APPROVE_OPTION) {
-            File file = chooser.getSelectedFile();
-            file = FileUtil.normalizeFile(file);
-            FileObject fileObject = FileUtil.toFileObject(file);
+            File[] files = chooser.getSelectedFiles();
+            FileObject[] fileObjects = new FileObject[files.length];
 
-            //Save last path
-            NbPreferences.forModule(ProjectControllerUIImpl.class).put(LAST_PATH, file.getAbsolutePath());
+            int i = 0;
+            File gephiFile = null;
+            for (File file : files) {
+                file = FileUtil.normalizeFile(file);
+                FileObject fileObject = FileUtil.toFileObject(file);
+                fileObjects[i++] = fileObject;
 
-            if (fileObject.getExt().equalsIgnoreCase("gephi")) {
+                if (fileObject.getExt().equalsIgnoreCase("gephi")) {
+                    if (gephiFile != null) {
+                        NotifyDescriptor.Message msg = new NotifyDescriptor.Message(NbBundle.getMessage(ProjectControllerUIImpl.class, "ProjectControllerUI.error.multipleGephi"), NotifyDescriptor.ERROR_MESSAGE);
+                        DialogDisplayer.getDefault().notify(msg);
+                        return;
+                    } else {
+                        gephiFile = file;
+                    }
+                }
+
+                //Save last path
+                NbPreferences.forModule(ProjectControllerUIImpl.class).put(LAST_PATH, file.getAbsolutePath());
+            }
+
+            if (gephiFile != null) {
                 //Project
                 if (controller.getCurrentProject() != null) {
                     if (!closeCurrentProject()) {
@@ -458,7 +500,7 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
                 }
 
                 try {
-                    loadProject(file);
+                    loadProject(gephiFile);
                 } catch (Exception ew) {
                     ew.printStackTrace();
                     NotifyDescriptor.Message msg = new NotifyDescriptor.Message(NbBundle.getMessage(ProjectControllerUIImpl.class, "OpenProject.defaulterror"), NotifyDescriptor.WARNING_MESSAGE);
@@ -466,17 +508,19 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
                 }
             } else {
                 //Import
-                importController.importFile(fileObject);
+                importController.importFiles(fileObjects);
             }
         }
     }
 
+    @Override
     public Project newProject() {
         if (closeCurrentProject()) {
             controller.newProject();
             final Project project = controller.getCurrentProject();
 
             SwingUtilities.invokeLater(new Runnable() {
+                @Override
                 public void run() {
                     JFrame frame = (JFrame) WindowManager.getDefault().getMainWindow();
                     String title = frame.getTitle() + " - " + project.getLookup().lookup(ProjectInformation.class).getName();
@@ -490,20 +534,19 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         return null;
     }
 
+    @Override
     public void closeProject() {
         if (closeCurrentProject()) {
             controller.closeCurrentProject();
         }
     }
 
+    @Override
     public Workspace newWorkspace() {
         return controller.newWorkspace(controller.getCurrentProject());
     }
 
-    public void cleanWorkspace() {
-        controller.cleanWorkspace(controller.getCurrentWorkspace());
-    }
-
+    @Override
     public void deleteWorkspace() {
         if (controller.getCurrentProject().getLookup().lookup(WorkspaceProvider.class).getWorkspaces().length == 1) {
             //Close project
@@ -514,15 +557,16 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
             closeProject = false;
             newWorkspace = false;
             deleteWorkspace = false;
-            cleanWorkspace = false;
             duplicateWorkspace = false;
+            renameWorkspace = false;
 
             //Title bar
             SwingUtilities.invokeLater(new Runnable() {
+                @Override
                 public void run() {
                     JFrame frame = (JFrame) WindowManager.getDefault().getMainWindow();
                     String title = frame.getTitle();
-                    title = title.substring(0, title.indexOf('-') - 1);
+                    title = title.substring(0, title.indexOf(" - "));
                     frame.setTitle(title);
                 }
             });
@@ -530,10 +574,12 @@ public class ProjectControllerUIImpl implements ProjectControllerUI {
         controller.deleteWorkspace(controller.getCurrentWorkspace());
     }
 
+    @Override
     public void renameWorkspace(String name) {
         controller.renameWorkspace(controller.getCurrentWorkspace(), name);
     }
 
+    @Override
     public Workspace duplicateWorkspace() {
         return controller.duplicateWorkspace(controller.getCurrentWorkspace());
     }

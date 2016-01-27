@@ -41,6 +41,7 @@
  */
 package org.gephi.io.importer.plugin.file;
 
+import java.io.IOException;
 import java.io.LineNumberReader;
 import java.io.Reader;
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ import org.gephi.io.importer.spi.FileImporter;
 import org.gephi.utils.longtask.spi.LongTask;
 import org.gephi.utils.progress.Progress;
 import org.gephi.utils.progress.ProgressTicket;
+import org.openide.util.Exceptions;
 import org.openide.util.NbBundle;
 
 /**
@@ -70,7 +72,8 @@ public class ImporterDL implements FileImporter, LongTask {
     private enum Format {
 
         FULLMATRIX, EDGELIST1
-    };
+    }
+
     //Architecture
     private Reader reader;
     private ContainerLoader container;
@@ -93,6 +96,11 @@ public class ImporterDL implements FileImporter, LongTask {
             importData(lineReader);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            try {
+                lineReader.close();
+            } catch (IOException ex) {
+            }
         }
         return !cancel;
     }

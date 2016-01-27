@@ -63,7 +63,7 @@ import org.w3c.dom.Document;
 /**
  * Class exporting the preview graph as an SVG image.
  *
- * @author Jérémy Subtil <jeremy.subtil@gephi.org>
+ * @author Jérémy Subtil
  */
 public class SVGExporter implements CharacterExporter, VectorExporter, LongTask {
 
@@ -78,6 +78,7 @@ public class SVGExporter implements CharacterExporter, VectorExporter, LongTask 
     private boolean scaleStrokes = false;
     private float margin = 4;
 
+    @Override
     public boolean execute() {
         PreviewController controller = Lookup.getDefault().lookup(PreviewController.class);
         controller.getModel(workspace).getProperties().putValue(PreviewProperty.VISIBILITY_RATIO, 1.0);
@@ -118,6 +119,7 @@ public class SVGExporter implements CharacterExporter, VectorExporter, LongTask 
         return !cancel;
     }
 
+    @Override
     public boolean cancel() {
         cancel = true;
         if (target instanceof LongTask) {
@@ -126,18 +128,22 @@ public class SVGExporter implements CharacterExporter, VectorExporter, LongTask 
         return true;
     }
 
+    @Override
     public void setProgressTicket(ProgressTicket progressTicket) {
         this.progress = progressTicket;
     }
 
+    @Override
     public void setWriter(Writer writer) {
         this.writer = writer;
     }
 
+    @Override
     public Workspace getWorkspace() {
         return workspace;
     }
 
+    @Override
     public void setWorkspace(Workspace workspace) {
         this.workspace = workspace;
     }

@@ -55,6 +55,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = PartitionUI.class)
 public class PartitionUIImpl implements PartitionUI {
 
+    @Override
     public JPanel getPanel(PartitionFilter filter) {
         PartitionPanel panel = new PartitionPanel();
         panel.setup(filter);

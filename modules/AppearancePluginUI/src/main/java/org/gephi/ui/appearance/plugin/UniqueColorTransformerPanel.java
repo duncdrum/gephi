@@ -42,9 +42,11 @@
 package org.gephi.ui.appearance.plugin;
 
 import java.awt.Color;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import net.java.dev.colorchooser.ColorChooser;
 import org.gephi.appearance.api.SimpleFunction;
+import org.gephi.appearance.plugin.AbstractUniqueColorTransformer;
 import org.gephi.appearance.plugin.UniqueElementColorTransformer;
 
 /**
@@ -53,25 +55,26 @@ import org.gephi.appearance.plugin.UniqueElementColorTransformer;
  */
 public class UniqueColorTransformerPanel extends javax.swing.JPanel {
 
-    private UniqueElementColorTransformer transformer;
+    private AbstractUniqueColorTransformer transformer;
 
-    /**
-     * Creates new form UniqueNodeColorTransformerPanel
-     */
     public UniqueColorTransformerPanel() {
         initComponents();
 
-        colorChooser.addActionListener(new ActionListener() {
+        colorChooser.addPropertyChangeListener(new PropertyChangeListener() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-                transformer.setColor(colorChooser.getColor());
-                colorLabel.setText(getHex(colorChooser.getColor()));
+            public void propertyChange(PropertyChangeEvent evt) {
+                if (evt.getPropertyName().equals(ColorChooser.PROP_COLOR)) {
+                    if (!transformer.getColor().equals(colorChooser.getColor())) {
+                        transformer.setColor(colorChooser.getColor());
+                        colorLabel.setText(getHex(colorChooser.getColor()));
+                    }
+                }
             }
         });
     }
 
     public void setup(SimpleFunction function) {
-        transformer = (UniqueElementColorTransformer) function.getTransformer();
+        transformer = (AbstractUniqueColorTransformer) function.getTransformer();
         colorChooser.setColor(transformer.getColor());
         colorLabel.setText(getHex(transformer.getColor()));
     }
@@ -88,7 +91,6 @@ public class UniqueColorTransformerPanel extends javax.swing.JPanel {
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
-        java.awt.GridBagConstraints gridBagConstraints;
 
         colorChooser = new net.java.dev.colorchooser.ColorChooser();
         colorLabel = new javax.swing.JLabel();

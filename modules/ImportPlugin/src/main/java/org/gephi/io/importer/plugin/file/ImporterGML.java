@@ -73,6 +73,11 @@ public class ImporterGML implements FileImporter, LongTask {
             importData(lineReader);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            try {
+                lineReader.close();
+            } catch (IOException ex) {
+            }
         }
         return !cancel;
     }
@@ -161,7 +166,7 @@ public class ImporterGML implements FileImporter, LongTask {
                 ret = parseEdge((ArrayList) value);
             } else if ("directed".equals(key)) {
                 if (value instanceof Double) {
-                    EdgeDirectionDefault edgeDefault = ((Double) value) == 1 ? EdgeDirectionDefault.DIRECTED : EdgeDirectionDefault.UNDIRECTED;
+                    EdgeDirectionDefault edgeDefault = ((Double) value) == 1.0 ? EdgeDirectionDefault.DIRECTED : EdgeDirectionDefault.UNDIRECTED;
                     container.setEdgeDefault(edgeDefault);
                 } else {
                     report.logIssue(new Issue(NbBundle.getMessage(ImporterGML.class, "importerGML_error_directedgraphparse"), Issue.Level.WARNING));
@@ -233,26 +238,34 @@ public class ImporterGML implements FileImporter, LongTask {
             } else if ("h".equalsIgnoreCase(key)) {
             } else if ("d".equalsIgnoreCase(key)) {
             } else if ("fill".equalsIgnoreCase(key)) {
-                int colorHex = -1;
                 if (value instanceof String) {
-                    String str = ((String) value).trim().replace("#", "");
-                    try {
-                        colorHex = Integer.valueOf(str, 16).intValue();
-                    } catch (Exception e) {
-                    }
-                }
-                if (colorHex != -1) {
-                    node.setColor(new Color(colorHex));
+                    node.setColor((String) value);
+                } else if (value instanceof Number) {
+                    node.setColor(new Color(((Number) value).intValue()));
                 }
             } else {
-                node.setValue(key, value.toString());
+                node.setValue(key, value);
             }
         }
         return ret;
     }
 
     private boolean parseEdge(ArrayList list) {
-        EdgeDraft edgeDraft = container.factory().newEdgeDraft();
+        String id = null;
+        for (int i = 0; i < list.size(); i += 2) {
+            String key = (String) list.get(i);
+            Object value = list.get(i + 1);
+            if ("id".equalsIgnoreCase(key)) {
+                id = value.toString();
+            }
+        }
+        EdgeDraft edgeDraft;
+        if (id != null) {
+            edgeDraft = container.factory().newEdgeDraft(id);
+        } else {
+            edgeDraft = container.factory().newEdgeDraft();
+        }
+
         for (int i = 0; i < list.size(); i += 2) {
             String key = (String) list.get(i);
             Object value = list.get(i + 1);
@@ -264,7 +277,7 @@ public class ImporterGML implements FileImporter, LongTask {
                 edgeDraft.setTarget(target);
             } else if ("value".equals(key) || "weight".equals(key)) {
                 if (value instanceof Double) {
-                    edgeDraft.setWeight(((Double) value).floatValue());
+                    edgeDraft.setWeight(((Double) value));
                 }
             } else if ("label".equals(key)) {
                 edgeDraft.setLabel(value.toString());
@@ -280,7 +293,7 @@ public class ImporterGML implements FileImporter, LongTask {
         for (int i = 0; i < list.size(); i += 2) {
             String key = (String) list.get(i);
             Object value = list.get(i + 1);
-            if ("source".equalsIgnoreCase(key) || "target".equalsIgnoreCase(key) || "value".equalsIgnoreCase(key) || "weight".equalsIgnoreCase(key) || "label".equalsIgnoreCase(key)) {
+            if ("id".equalsIgnoreCase(key) || "source".equalsIgnoreCase(key) || "target".equalsIgnoreCase(key) || "value".equalsIgnoreCase(key) || "weight".equalsIgnoreCase(key) || "label".equalsIgnoreCase(key)) {
                 continue; // already parsed
             }
             if (value instanceof ArrayList) {
@@ -292,12 +305,18 @@ public class ImporterGML implements FileImporter, LongTask {
             } else if ("directed".equalsIgnoreCase(key)) {
                 if (value instanceof Double) {
                     EdgeDirection type = ((Double) value) == 1 ? EdgeDirection.DIRECTED : EdgeDirection.UNDIRECTED;
-                    edge.setType(type);
+                    edge.setDirection(type);
                 } else {
                     report.logIssue(new Issue(NbBundle.getMessage(ImporterGML.class, "importerGML_error_directedparse", edge.toString()), Issue.Level.WARNING));
                 }
+            } else if ("fill".equalsIgnoreCase(key)) {
+                if (value instanceof String) {
+                    edge.setColor((String) value);
+                } else if (value instanceof Number) {
+                    edge.setColor(new Color(((Number) value).intValue()));
+                }
             } else {
-                edge.setValue(key, value.toString());
+                edge.setValue(key, value);
             }
         }
         return ret;

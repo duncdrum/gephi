@@ -42,9 +42,6 @@ Portions Copyrighted 2011 Gephi Consortium.
  */
 package org.gephi.statistics;
 
-import org.gephi.attribute.api.AttributeModel;
-import org.gephi.attribute.api.TimestampIndex;
-import org.gephi.attribute.time.Interval;
 import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Graph;
 import org.gephi.statistics.spi.StatisticsBuilder;
@@ -53,7 +50,10 @@ import org.gephi.statistics.api.*;
 import org.gephi.graph.api.GraphController;
 import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.GraphView;
+import org.gephi.graph.api.Interval;
 import org.gephi.graph.api.Node;
+import org.gephi.graph.api.Subgraph;
+import org.gephi.graph.api.TimeIndex;
 import org.gephi.project.api.ProjectController;
 import org.gephi.utils.longtask.spi.LongTask;
 import org.gephi.utils.longtask.api.LongTaskExecutor;
@@ -86,7 +86,9 @@ public class StatisticsControllerImpl implements StatisticsController {
 
             @Override
             public void initialize(Workspace workspace) {
-                workspace.add(new StatisticsModelImpl());
+                if (workspace.getLookup().lookup(StatisticsModelImpl.class) == null) {
+                    workspace.add(new StatisticsModelImpl());
+                }
             }
 
             @Override
@@ -157,8 +159,7 @@ public class StatisticsControllerImpl implements StatisticsController {
         } else {
             GraphController graphController = Lookup.getDefault().lookup(GraphController.class);
             GraphModel graphModel = graphController.getGraphModel();
-            AttributeModel attributeModel = graphController.getAttributeModel();
-            statistics.execute(graphModel, attributeModel);
+            statistics.execute(graphModel);
             model.addReport(statistics);
         }
     }
@@ -166,13 +167,18 @@ public class StatisticsControllerImpl implements StatisticsController {
     private void executeDynamic(DynamicStatistics statistics, DynamicLongTask dynamicLongTask) {
         GraphController graphController = Lookup.getDefault().lookup(GraphController.class);
         GraphModel graphModel = graphController.getGraphModel();
-        AttributeModel attributeModel = graphController.getAttributeModel();
 
         double window = statistics.getWindow();
         double tick = statistics.getTick();
+
+        GraphView currentView = graphModel.getVisibleView();
         Interval bounds = statistics.getBounds();
         if (bounds == null) {
-            bounds = graphModel.getTimeBoundsVisible();
+            if (currentView.isMainView()) {
+                bounds = graphModel.getTimeBounds();
+            } else {
+                bounds = currentView.getTimeInterval();
+            }
             statistics.setBounds(bounds);
         }
 
@@ -183,30 +189,46 @@ public class StatisticsControllerImpl implements StatisticsController {
         }
 
         //Init
-        statistics.execute(graphModel, attributeModel);
+        statistics.execute(graphModel);
 
         //Loop
         for (double low = bounds.getLow(); low <= bounds.getHigh() - window; low += tick) {
             double high = low + window;
 
-//            Graph g = dynamicGraph.getSnapshotGraph(low, high);
-            
-            
-            GraphView currentView = graphModel.getVisibleView();
             Graph graph = graphModel.getGraphVisible();
+
+            graph.writeLock();
+
             GraphView view = graphModel.createView();
-            Graph g = graphModel.getGraph(view);
-            
-            TimestampIndex<Node> nodeIndex = graphModel.getNodeTimestampIndex(currentView);
-            for(Node node : nodeIndex.get(low, high)) {
-                g.addNode(node);
+            Subgraph g = graphModel.getGraph(view);
+
+            TimeIndex<Node> nodeIndex = graphModel.getNodeTimeIndex(currentView);
+            if (Double.isInfinite(nodeIndex.getMinTimestamp()) && Double.isInfinite(nodeIndex.getMaxTimestamp())) {
+                for (Node node : graph.getNodes()) {
+                    g.addNode(node);
+                }
+            } else {
+                for (Node node : nodeIndex.get(new Interval(low, high))) {
+                    g.addNode(node);
+                }
             }
-            
-            TimestampIndex<Edge> edgeIndex = graphModel.getEdgeTimestampIndex(currentView);
-            for(Edge edge : edgeIndex.get(low, high)) {
-                g.addEdge(edge);
+
+            TimeIndex<Edge> edgeIndex = graphModel.getEdgeTimeIndex(currentView);
+            if (Double.isInfinite(edgeIndex.getMinTimestamp()) && Double.isInfinite(edgeIndex.getMaxTimestamp())) {
+                for (Edge edge : graph.getEdges()) {
+                    if (g.contains(edge.getSource()) && g.contains(edge.getTarget())) {
+                        g.addEdge(edge);
+                    }
+                }
+            } else {
+                for (Edge edge : edgeIndex.get(new Interval(low, high))) {
+                    if (g.contains(edge.getSource()) && g.contains(edge.getTarget())) {
+                        g.addEdge(edge);
+                    }
+                }
             }
-            
+
+            graph.writeUnlock();
 
             statistics.loop(g.getView(), new Interval(low, high));
 
@@ -221,6 +243,7 @@ public class StatisticsControllerImpl implements StatisticsController {
         model.addReport(statistics);
     }
 
+    @Override
     public StatisticsBuilder getBuilder(Class<? extends Statistics> statisticsClass) {
         for (StatisticsBuilder b : statisticsBuilders) {
             if (b.getStatisticsClass().equals(statisticsClass)) {
@@ -230,10 +253,12 @@ public class StatisticsControllerImpl implements StatisticsController {
         return null;
     }
 
+    @Override
     public StatisticsModelImpl getModel() {
         return model;
     }
 
+    @Override
     public StatisticsModel getModel(Workspace workspace) {
         StatisticsModel statModel = workspace.getLookup().lookup(StatisticsModelImpl.class);
         if (statModel == null) {
@@ -257,6 +282,7 @@ public class StatisticsControllerImpl implements StatisticsController {
             }
         }
 
+        @Override
         public boolean cancel() {
             cancel = true;
             if (longTask != null) {
@@ -265,6 +291,7 @@ public class StatisticsControllerImpl implements StatisticsController {
             return true;
         }
 
+        @Override
         public void setProgressTicket(ProgressTicket progressTicket) {
             this.progressTicket = progressTicket;
         }

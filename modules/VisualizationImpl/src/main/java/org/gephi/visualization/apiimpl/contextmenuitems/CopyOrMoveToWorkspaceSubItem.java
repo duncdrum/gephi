@@ -41,20 +41,27 @@
  */
 package org.gephi.visualization.apiimpl.contextmenuitems;
 
+import java.util.Arrays;
 import javax.swing.Icon;
+import javax.swing.JOptionPane;
+import org.gephi.datalab.spi.nodes.NodesManipulator;
 import org.gephi.desktop.project.api.ProjectControllerUI;
+import org.gephi.graph.api.Graph;
+import org.gephi.graph.api.GraphController;
+import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
+import org.gephi.project.api.ProjectController;
 import org.gephi.project.api.Workspace;
 import org.gephi.project.api.WorkspaceInformation;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 
-public class CopyOrMoveToWorkspaceSubItem extends BasicItem {
+public class CopyOrMoveToWorkspaceSubItem extends BasicItem implements NodesManipulator {
 
-    private Workspace workspace;
-    private boolean canExecute;
-    private int type;
-    private int position;
+    private final Workspace workspace;
+    private final boolean canExecute;
+    private final int type;
+    private final int position;
     private final boolean copy;
 
     @Override
@@ -81,9 +88,6 @@ public class CopyOrMoveToWorkspaceSubItem extends BasicItem {
 
     @Override
     public void execute() {
-        if (workspace == null) {
-            workspace = Lookup.getDefault().lookup(ProjectControllerUI.class).newWorkspace();
-        }
         if (copy) {
             copyToWorkspace(workspace);
         } else {
@@ -120,37 +124,43 @@ public class CopyOrMoveToWorkspaceSubItem extends BasicItem {
         return null;
     }
 
-    public void copyToWorkspace(Workspace workspace) {
-//        GraphController graphController = Lookup.getDefault().lookup(GraphController.class);
-//        AttributeController attributeController = Lookup.getDefault().lookup(AttributeController.class);
-//        ProjectController projectController = Lookup.getDefault().lookup(ProjectController.class);
-//
-//        Workspace currentWorkspace = projectController.getCurrentWorkspace();
-//        AttributeModel sourceAttributeModel = attributeController.getModel(currentWorkspace);
-//        AttributeModel destAttributeModel = attributeController.getModel(workspace);
-//        destAttributeModel.mergeModel(sourceAttributeModel);
-//
-//        //Copy the TImeFormat
-//        DynamicController dynamicController = Lookup.getDefault().lookup(DynamicController.class);
-//        dynamicController.setTimeFormat(dynamicController.getModel(currentWorkspace).getTimeFormat(), workspace);
-//
-//        GraphModel sourceModel = graphController.getModel(currentWorkspace);
-//        GraphModel destModel = graphController.getModel(workspace);
-//        Graph destGraph = destModel.getHierarchicalGraphVisible();
-//        Graph sourceGraph = sourceModel.getHierarchicalGraphVisible();
-//
-//        destModel.pushNodes(sourceGraph, nodes);
+    public boolean copyToWorkspace(Workspace workspace) {
+        ProjectController projectController = Lookup.getDefault().lookup(ProjectController.class);
+        Workspace currentWorkspace = projectController.getCurrentWorkspace();
+        GraphController graphController = Lookup.getDefault().lookup(GraphController.class);
+
+        GraphModel graphModel;
+        if (workspace == null) {
+            workspace = Lookup.getDefault().lookup(ProjectControllerUI.class).newWorkspace();
+            graphModel = graphController.getGraphModel(workspace);
+
+            GraphModel currentGraphModel = graphController.getGraphModel(currentWorkspace);
+            graphModel.setConfiguration(currentGraphModel.getConfiguration());
+            graphModel.setTimeFormat(currentGraphModel.getTimeFormat());
+            graphModel.setTimeZone(currentGraphModel.getTimeZone());
+        } else {
+            graphModel = graphController.getGraphModel(workspace);
+        }
+
+        try {
+            graphModel.bridge().copyNodes(nodes);
+            return true;
+        } catch (Exception e) {
+            String error = NbBundle.getMessage(CopyOrMoveToWorkspace.class, "GraphContextMenu_CopyOrMoveToWorkspace_ConfigurationNotCompatible");
+            String title = NbBundle.getMessage(CopyOrMoveToWorkspace.class, "GraphContextMenu_CopyOrMoveToWorkspace_ConfigurationNotCompatible_Title");
+            JOptionPane.showMessageDialog(null, error, title, JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
     }
 
     public void moveToWorkspace(Workspace workspace) {
-        copyToWorkspace(workspace);
-        delete();
+        if(copyToWorkspace(workspace)){
+            delete();
+        }
     }
 
     public void delete() {
-//        HierarchicalGraph hg = Lookup.getDefault().lookup(GraphController.class).getModel().getHierarchicalGraph();
-//        for (Node n : nodes) {
-//            hg.removeNode(n);
-//        }
+        Graph g = Lookup.getDefault().lookup(GraphController.class).getGraphModel().getGraph();
+        g.removeAllNodes(Arrays.asList(nodes));
     }
 }

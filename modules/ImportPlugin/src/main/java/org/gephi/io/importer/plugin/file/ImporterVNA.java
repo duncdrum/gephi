@@ -41,6 +41,7 @@
  */
 package org.gephi.io.importer.plugin.file;
 
+import java.io.IOException;
 import java.io.LineNumberReader;
 import java.io.Reader;
 import java.util.ArrayList;
@@ -84,7 +85,7 @@ public class ImporterVNA implements FileImporter, LongTask {
 
         DEFAULT, NODE_DATA, NODE_PROPERTIES, TIE_DATA,
         NODE_DATA_DEF, NODE_PROPERTIES_DEF, TIE_DATA_DEF
-    };
+    }
 
     /**
      * Attributes defined by the VNA file: VNA files allow some or no properties
@@ -94,7 +95,8 @@ public class ImporterVNA implements FileImporter, LongTask {
 
         OTHER, NODE_X, NODE_Y, NODE_COLOR, NODE_SIZE,
         NODE_SHAPE, NODE_SHORT_LABEL, EDGE_STRENGTH
-    };
+    }
+
     /**
      * Declared column labels for all sections.
      */
@@ -118,6 +120,11 @@ public class ImporterVNA implements FileImporter, LongTask {
             importData(lineReader);
         } catch (Exception e) {
             report.logIssue(new Issue(e, Issue.Level.SEVERE));
+        } finally {
+            try {
+                lineReader.close();
+            } catch (IOException ex) {
+            }
         }
         return !cancel;
     }
@@ -292,9 +299,7 @@ public class ImporterVNA implements FileImporter, LongTask {
                         node.setY(Float.parseFloat(nodeProperties[i]));
                         break;
                     case NODE_COLOR:
-                        // Add just shades of red as NetDraw VNA is not specific
-                        // about color.
-                        node.setColor(Integer.parseInt(nodeProperties[i]), 0, 0);
+                        node.setColor(nodeProperties[i]);
                         break;
                     case NODE_SIZE:
                         node.setSize(Float.parseFloat(nodeProperties[i]));
@@ -386,7 +391,8 @@ public class ImporterVNA implements FileImporter, LongTask {
         public enum Function {
 
             LINEAR, SQUARE_ROOT, LOGARITHMIC
-        };
+        }
+
         public final Function function;
         public final float coefficient;
 
