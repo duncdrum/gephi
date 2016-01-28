@@ -99,3 +99,5 @@ keystore.ks
 /modules/AppearancePlugin/target/
 /modules/AppearancePluginUI/target/
 /modules/DesktopAppearance/target/
+
+.project
