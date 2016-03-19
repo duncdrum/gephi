@@ -42,7 +42,6 @@
 package org.gephi.visualization.bridge;
 
 import java.util.Arrays;
-import java.util.List;
 import org.gephi.graph.api.Column;
 import org.gephi.graph.api.ColumnObserver;
 import org.gephi.graph.api.Edge;
@@ -297,7 +296,7 @@ public class DataBridge implements VizArchitecture {
         nodeColumnHashCode = Arrays.hashCode(nodeColumns);
         nodeColumnObservers = new ColumnObserver[nodeColumns.length];
         for (int i = 0; i < nodeColumns.length; i++) {
-            nodeColumnObservers[i] = nodeColumns[i].createColumnObserver();
+            nodeColumnObservers[i] = nodeColumns[i].createColumnObserver(false);
         }
     }
 
@@ -314,7 +313,7 @@ public class DataBridge implements VizArchitecture {
         edgeColumnHashCode = Arrays.hashCode(edgeColumns);
         edgeColumnObservers = new ColumnObserver[edgeColumns.length];
         for (int i = 0; i < edgeColumns.length; i++) {
-            edgeColumnObservers[i] = edgeColumns[i].createColumnObserver();
+            edgeColumnObservers[i] = edgeColumns[i].createColumnObserver(false);
         }
     }
 

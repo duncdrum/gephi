@@ -70,9 +70,6 @@ import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import org.gephi.graph.api.Column;
-import org.gephi.graph.api.Table;
-import org.gephi.graph.api.TableObserver;
 import org.gephi.datalab.api.DataLaboratoryHelper;
 import org.gephi.datalab.api.datatables.AttributeTableCSVExporter;
 import org.gephi.datalab.api.datatables.DataTablesController;
@@ -88,14 +85,14 @@ import org.gephi.desktop.datalab.general.actions.CSVExportUI;
 import org.gephi.desktop.datalab.general.actions.MergeColumnsUI;
 import org.gephi.desktop.datalab.tables.EdgesDataTable;
 import org.gephi.desktop.datalab.tables.NodesDataTable;
+import org.gephi.graph.api.Column;
 import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Element;
 import org.gephi.graph.api.Graph;
 import org.gephi.graph.api.GraphController;
 import org.gephi.graph.api.GraphModel;
-import org.gephi.graph.api.GraphObserver;
-import org.gephi.graph.api.GraphView;
 import org.gephi.graph.api.Node;
+import org.gephi.graph.api.Table;
 import org.gephi.project.api.ProjectController;
 import org.gephi.project.api.ProjectInformation;
 import org.gephi.project.api.Workspace;
@@ -155,14 +152,14 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
     private static final String DATA_LABORATORY_SPARKLINES = "DataLaboratory_useSparklines";
     private static final String DATA_LABORATORY_TIME_INTERVAL_GRAPHICS = "DataLaboratory_timeIntervalGraphics";
     private static final String DATA_LABORATORY_EDGES_NODES_LABELS = "DataLaboratory_showEdgesNodesLabels";
-    private static final Color invalidFilterColor = new Color(254, 150, 150);
+    private static final Color INVALID_FILTER_COLOR = new Color(254, 150, 150);
     private final boolean dynamicFiltering;
     private boolean visibleOnly = true;
     private boolean useSparklines = false;
     private boolean timeIntervalGraphics = false;
     private boolean showEdgesNodesLabels = false;
-    private Map<Integer, ContextMenuItemManipulator> nodesActionMappings = new HashMap<Integer, ContextMenuItemManipulator>();//For key bindings
-    private Map<Integer, ContextMenuItemManipulator> edgesActionMappings = new HashMap<Integer, ContextMenuItemManipulator>();//For key bindings
+    private Map<Integer, ContextMenuItemManipulator> nodesActionMappings = new HashMap<>();//For key bindings
+    private Map<Integer, ContextMenuItemManipulator> edgesActionMappings = new HashMap<>();//For key bindings
     //Data
     private final ProjectController pc;
     private final GraphController gc;
@@ -173,9 +170,7 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
     
     //Observers for auto-refreshing:
     private volatile boolean autoRefreshEnabled = false;
-    private GraphObserver graphObserver;
-    private TableObserver nodesTableObserver;
-    private TableObserver edgesTableObserver;
+    private DataTablesObservers dataTablesObservers;
     //Timer for the observers:
     private java.util.Timer observersTimer;
     
@@ -183,13 +178,13 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
     private NodesDataTable nodeTable;
     private EdgesDataTable edgeTable;
     //General actions buttons
-    private ArrayList<JComponent> generalActionsButtons = new ArrayList<JComponent>();
+    private ArrayList<JComponent> generalActionsButtons = new ArrayList<>();
     //States
     private DisplayTable displayTable = DisplayTable.NODE;//Display nodes by default at first.
     private ArrayList previousNodeFilterColumns = new ArrayList();
     private ArrayList previousEdgeFilterColumns = new ArrayList();
-    private Map<DisplayTable, String> filterTextByDisplayTable = new EnumMap<DisplayTable, String>(DisplayTable.class);
-    private Map<DisplayTable, Integer> filterColumnIndexByDisplayTable = new EnumMap<DisplayTable, Integer>(DisplayTable.class);
+    private Map<DisplayTable, String> filterTextByDisplayTable = new EnumMap<>(DisplayTable.class);
+    private Map<DisplayTable, Integer> filterColumnIndexByDisplayTable = new EnumMap<>(DisplayTable.class);
     
     //Refresh executor
     private RefreshOnceHelperThread refreshOnceHelperThread;
@@ -264,48 +259,26 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
         enableTableControls();
 
         graphModel = gc.getGraphModel(workspace);
-        nodesTableObserver = gc.getGraphModel(workspace).getNodeTable().createTableObserver(false);
-        edgesTableObserver = gc.getGraphModel(workspace).getEdgeTable().createTableObserver(false);
-        graphObserver = graphModel.createGraphObserver(graphModel.getGraph(), false);
+        
+        dataTablesObservers = workspace.getLookup().lookup(DataTablesObservers.class);
+        if (dataTablesObservers == null) {
+            workspace.add(dataTablesObservers = new DataTablesObservers(workspace));
+        }
+        dataTablesObservers.initialize();
 
         refreshAllOnce();
     }
     
     private void deactivateAll(){
-        if(graphObserver != null){
-            graphObserver.destroy();
-            graphObserver = null;
-        }
-        if(nodesTableObserver != null){
-            nodesTableObserver.destroy();
-            nodesTableObserver = null;
-        }
-        if(edgesTableObserver != null){
-            edgesTableObserver.destroy();
-            edgesTableObserver = null;
-        }
+        dataTablesObservers.destroy();
 
         graphModel = null;
         dataTablesModel = null;
+        dataTablesObservers = null;
         nodeAvailableColumnsModel = null;
         edgeAvailableColumnsModel = null;
 
         clearAll();
-    }
-    
-    /**
-     * Used only for detecting changes in graph filters (visible view).
-     */
-    class LatestVisibleView {
-        private final GraphView view;
-
-        public LatestVisibleView(GraphView view) {
-            this.view = view;
-        }
-
-        public GraphView getView() {
-            return view;
-        }
     }
     
     private void initEvents() {
@@ -359,24 +332,8 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
                 if(!autoRefreshEnabled){
                     return;
                 }
-                Workspace workspace = pc.getCurrentWorkspace();
-                if(workspace != null){
-                    boolean hasChanges = 
-                            (graphObserver != null && graphObserver.hasGraphChanged())
-                            || (nodesTableObserver != null && nodesTableObserver.hasTableChanged())
-                            || (edgesTableObserver != null && edgesTableObserver.hasTableChanged());
-                    
-                    LatestVisibleView latestVisibleView = workspace.getLookup().lookup(LatestVisibleView.class);
-
-                    if(latestVisibleView != null){
-                        workspace.remove(latestVisibleView);
-                        if(latestVisibleView.getView().isDestroyed()){
-                            hasChanges = true;
-                        }
-                    }
-                    workspace.add(new LatestVisibleView(graphModel.getVisibleView()));
-
-                    if(hasChanges){
+                if(dataTablesObservers != null){
+                    if(dataTablesObservers.hasChanges()){
                         graphChanged();//Execute refresh
                     }
                 }
@@ -538,13 +495,13 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
             if (nodeTable.setFilterPattern(filterTextField.getText(), index)) {
                 filterTextField.setBackground(Color.WHITE);
             } else {
-                filterTextField.setBackground(invalidFilterColor);
+                filterTextField.setBackground(INVALID_FILTER_COLOR);
             }
         } else if (isShowingEdgesTable()) {
             if (edgeTable.setFilterPattern(filterTextField.getText(), index)) {
                 filterTextField.setBackground(Color.WHITE);
             } else {
-                filterTextField.setBackground(invalidFilterColor);
+                filterTextField.setBackground(INVALID_FILTER_COLOR);
             }
         }
     }
@@ -984,7 +941,6 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
      * Creates the buttons that call the AttributeColumnManipulators.
      */
     private void prepareColumnManipulatorsButtons() {
-        GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getGraphModel();
         Table table;
         Column[] columns;
         if (isShowingNodesTable()) {
@@ -1038,7 +994,7 @@ public class DataTableTopComponent extends TopComponent implements AWTEventListe
             manipulatorButton.setPopupRichTooltip(new RichTooltip(NbBundle.getMessage(DataTableTopComponent.class, "DataTableTopComponent.RichToolTip.title.text"), acm.getDescription()));
         }
 
-        final ArrayList<Column> availableColumns = new ArrayList<Column>();
+        final ArrayList<Column> availableColumns = new ArrayList<>();
         for (final Column column : columns) {
             if (acm.canManipulateColumn(table, column)) {
                 availableColumns.add(column);

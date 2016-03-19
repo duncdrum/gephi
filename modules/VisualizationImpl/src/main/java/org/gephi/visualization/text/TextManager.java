@@ -95,9 +95,10 @@ public class TextManager implements VizArchitecture {
         sizeModes[2] = new ProportionalSizeMode();
 
         //ColorMode init
-        colorModes = new ColorMode[2];
+        colorModes = new ColorMode[3];
         colorModes[0] = new UniqueColorMode();
         colorModes[1] = new ObjectColorMode();
+        colorModes[2] = new TextColorMode();
     }
 
     @Override
@@ -398,8 +399,14 @@ public class TextManager implements VizArchitecture {
 
                 model.colorMode.textEdgeColor(this, objectModel);
 
-                float x = (objectModel.getSourceModel().getNode().x() + 2 * objectModel.getTargetModel().getNode().x()) / 3f;
-                float y = (objectModel.getSourceModel().getNode().y() + 2 * objectModel.getTargetModel().getNode().y()) / 3f;
+                float x, y;
+                if (edge.isDirected()) {
+                    x = (objectModel.getSourceModel().getNode().x() + 2 * objectModel.getTargetModel().getNode().x()) / 3f;
+                    y = (objectModel.getSourceModel().getNode().y() + 2 * objectModel.getTargetModel().getNode().y()) / 3f;
+                } else {
+                    x = (objectModel.getSourceModel().getNode().x() + objectModel.getTargetModel().getNode().x()) / 2f;
+                    y = (objectModel.getSourceModel().getNode().y() + objectModel.getTargetModel().getNode().y()) / 2f;
+                }
 
                 posX = x + (float) width / -2;
                 posY = y + (float) height / -2;

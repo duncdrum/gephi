@@ -48,7 +48,8 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.border.Border;
 import javax.swing.border.LineBorder;
-import org.gephi.desktop.datalab.utils.DoubleRenderer;
+import org.gephi.desktop.datalab.utils.GraphModelProvider;
+import org.gephi.desktop.datalab.utils.stringconverters.DoubleStringConverter;
 import org.gephi.graph.api.AttributeUtils;
 import org.gephi.graph.api.TimeFormat;
 import org.gephi.graph.api.types.IntervalMap;
@@ -65,6 +66,8 @@ public class AttributeTypesSupportCellEditor extends DefaultCellEditor {
 
     private static final Border RED_BORDER = new LineBorder(Color.red);
 
+    private final GraphModelProvider graphModelProvider;
+    
     private final JTextField textField;
     private final Border originalBorder;
     private final Class<?> typeClass;
@@ -75,11 +78,9 @@ public class AttributeTypesSupportCellEditor extends DefaultCellEditor {
     private final boolean isArrayType;
     private final boolean isDecimalType;
 
-    private TimeFormat timeFormat = TimeFormat.DOUBLE;
-    private DateTimeZone timeZone = DateTimeZone.UTC;
-
-    public AttributeTypesSupportCellEditor(Class<?> typeClass) {
+    public AttributeTypesSupportCellEditor(GraphModelProvider graphModelProvider, Class<?> typeClass) {
         super(new JTextField());
+        this.graphModelProvider = graphModelProvider;
         this.typeClass = typeClass;
 
         textField = new JTextField();
@@ -120,6 +121,9 @@ public class AttributeTypesSupportCellEditor extends DefaultCellEditor {
     public Component getTableCellEditorComponent(JTable table,
             Object value, boolean isSelected, int row, int column) {
 
+        TimeFormat timeFormat = graphModelProvider.getGraphModel().getTimeFormat();
+        DateTimeZone timeZone = graphModelProvider.getGraphModel().getTimeZone();
+        
         String valueStr;
         if (value == null) {
             valueStr = "";
@@ -134,30 +138,14 @@ public class AttributeTypesSupportCellEditor extends DefaultCellEditor {
         } else if (isArrayType) {
             valueStr = AttributeUtils.printArray(value);
         } else if (isDecimalType) {
-            valueStr = DoubleRenderer.FORMAT.format(value);
+            valueStr = DoubleStringConverter.FORMAT.format(value);
         } else {
-            valueStr = value.toString();
+            valueStr = AttributeUtils.print(value, timeFormat, timeZone);
         }
 
         textField.setBorder(originalBorder);
         textField.setEditable(true);
         textField.setText(valueStr);
         return textField;
-    }
-
-    public TimeFormat getTimeFormat() {
-        return timeFormat;
-    }
-
-    public void setTimeFormat(TimeFormat timeFormat) {
-        this.timeFormat = timeFormat;
-    }
-
-    public DateTimeZone getTimeZone() {
-        return timeZone;
-    }
-
-    public void setTimeZone(DateTimeZone timeZone) {
-        this.timeZone = timeZone;
     }
 }

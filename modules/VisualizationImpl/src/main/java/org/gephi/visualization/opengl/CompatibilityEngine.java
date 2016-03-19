@@ -41,13 +41,13 @@
  */
 package org.gephi.visualization.opengl;
 
-import java.awt.Color;
-import java.util.Arrays;
-import java.util.Iterator;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.glu.GLU;
 import com.jogamp.opengl.glu.GLUquadric;
+import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import org.gephi.visualization.VizController;
 import org.gephi.visualization.VizModel;
@@ -243,7 +243,7 @@ public class CompatibilityEngine extends AbstractEngine {
                     for (Iterator<EdgeModel> itr = octree.getEdgeIterator(); itr.hasNext();) {
                         EdgeModel obj = itr.next();
                         if (obj.markTime != markTime) {
-                            if (obj.isSelected() || obj.isTextVisible()) {
+                            if ((obj.isSelected() || obj.isAutoSelected()) && obj.isTextVisible()) {
                                 textManager.getEdgeRenderer().drawTextEdge(obj);
                             }
                             obj.markTime = markTime;
@@ -456,7 +456,7 @@ public class CompatibilityEngine extends AbstractEngine {
 
     @Override
     public List<NodeModel> getSelectedNodes() {
-        List<NodeModel> selected = new ArrayList<NodeModel>();
+        List<NodeModel> selected = new ArrayList<>();
         for (Iterator<NodeModel> itr = octree.getSelectableNodeIterator(); itr.hasNext();) {
             NodeModel nodeModel = itr.next();
             if (nodeModel.isSelected()) {

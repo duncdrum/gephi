@@ -43,12 +43,12 @@ package org.gephi.filters;
 
 import java.beans.PropertyEditorManager;
 import java.util.Set;
+import org.gephi.filters.FilterThread.PropertyModifier;
 import org.gephi.filters.api.FilterController;
 import org.gephi.filters.api.FilterModel;
 import org.gephi.filters.api.PropertyExecutor;
 import org.gephi.filters.api.Query;
 import org.gephi.filters.api.Range;
-import org.gephi.filters.FilterThread.PropertyModifier;
 import org.gephi.filters.spi.*;
 import org.gephi.graph.api.Column;
 import org.gephi.graph.api.Edge;
@@ -59,12 +59,12 @@ import org.gephi.graph.api.GraphView;
 import org.gephi.graph.api.Node;
 import org.gephi.graph.api.Origin;
 import org.gephi.project.api.ProjectController;
-import org.gephi.utils.progress.Progress;
-import org.gephi.utils.progress.ProgressTicket;
-import org.gephi.utils.progress.ProgressTicketProvider;
 import org.gephi.project.api.Workspace;
 import org.gephi.project.api.WorkspaceInformation;
 import org.gephi.project.api.WorkspaceListener;
+import org.gephi.utils.progress.Progress;
+import org.gephi.utils.progress.ProgressTicket;
+import org.gephi.utils.progress.ProgressTicketProvider;
 import org.gephi.visualization.api.VisualizationController;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
@@ -149,6 +149,14 @@ public class FilterControllerImpl implements FilterController, PropertyExecutor 
             return new OperatorQueryImpl((Operator) filter);
         }
         return new FilterQueryImpl(builder, filter);
+    }
+
+    @Override
+    public Query createQuery(Filter filter) {
+        if (filter instanceof Operator) {
+            return new OperatorQueryImpl((Operator) filter);
+        }
+        return new FilterQueryImpl(null, filter);
     }
 
     @Override

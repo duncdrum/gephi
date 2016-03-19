@@ -44,12 +44,9 @@ package org.gephi.desktop.datalab;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
 import org.gephi.datalab.api.datatables.DataTablesEventListener;
 import org.gephi.datalab.api.datatables.DataTablesEventListenerBuilder;
 import org.openide.util.lookup.ServiceProvider;
@@ -68,7 +65,7 @@ public class DefaultDataTablesEventListenerBuilder implements DataTablesEventLis
         if (SwingUtilities.isEventDispatchThread()) {
             return (DataTableTopComponent) WindowManager.getDefault().findTopComponent("DataTableTopComponent");
         } else {
-            final List<DataTableTopComponent> listenerHolder = new ArrayList<DataTableTopComponent>();
+            final List<DataTableTopComponent> listenerHolder = new ArrayList<>();
             try {
                 //We have to do this in AWT thread...
                 //There is no support for Futures as far as I know

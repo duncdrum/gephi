@@ -49,7 +49,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import org.gephi.appearance.api.Partition;
 
 /**
@@ -61,7 +60,7 @@ public abstract class PartitionImpl implements Partition {
     protected final Map<Object, Color> colorMap;
 
     protected PartitionImpl() {
-        this.colorMap = new HashMap<Object, Color>();
+        this.colorMap = new HashMap<>();
     }
 
     @Override
@@ -72,6 +71,18 @@ public abstract class PartitionImpl implements Partition {
     @Override
     public void setColor(Object value, Color color) {
         colorMap.put(value, color);
+    }
+
+    @Override
+    public void setColors(Color[] colors) {
+        Collection c = getSortedValues();
+        if (c.size() != colors.length) {
+            throw new IllegalArgumentException("The colors size must match the partition size");
+        }
+        int i = 0;
+        for (Object o : c) {
+            setColor(o, colors[i++]);
+        }
     }
 
     protected abstract void refresh();
